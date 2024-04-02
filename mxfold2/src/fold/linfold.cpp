@@ -6,9 +6,6 @@
 #include <stack>
 #include <cassert>
 #include <cmath>
-#ifdef USE_OPENMP
-#include <omp.h>
-#endif
 #include "linfold.h"
 
 template < typename P, typename S >

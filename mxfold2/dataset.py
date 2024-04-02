@@ -112,7 +112,7 @@ class RibonanzaDataset(Dataset[tuple[str, str, dict[str, torch.Tensor]]]):
         super(Dataset, self).__init__()
         self.csv_file = csv_file
         self.df = pd.read_csv(csv_file)
-        ex_type = self.df['experiment_type'].unique()
+        ex_type = sorted(self.df['experiment_type'].unique())
         self.dataset_id = { et: i for i, et in enumerate(ex_type) }
 
     def  __len__(self) -> int:

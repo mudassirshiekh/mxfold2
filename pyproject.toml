@@ -9,19 +9,19 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-numpy = "*"
-torch = "*"
-tqdm = "*"
+numpy = "^1.26"
+torch = "^2.2"
+tqdm = "^4.66"
 pybind11 = "^2.10"
 pytorch-optimizer = "^2.5.0"
 rdkit = "*"
+pandas = "^2.2"
 
 [tool.poetry.group.dev.dependencies]
-pylint = "*"
-jupyter = "*"
-pandas = "*"
-tensorboard = "*"
-torch-tb-profiler = "*"
+pylint = "^3.1"
+jupyter = "^1.0"
+tensorboard = "^2.16"
+torch-tb-profiler = "^0.4"
 scipy = "^1.11.3"
 cmake-build-extension = "^0.5.1"
 
