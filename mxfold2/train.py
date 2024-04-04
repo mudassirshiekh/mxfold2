@@ -301,7 +301,7 @@ class Train(Common):
             init_param = Path(args.init_param)
             if not init_param.exists() and conf is not None:
                 init_param = Path(conf) / init_param
-            p = torch.load(init_param)
+            p = torch.load(init_param, map_location='cpu')
             if shape_model is not None and isinstance(p, dict) and 'shape_model_state_dict' in p:
                 for i, sm in enumerate(shape_model):
                     sm.load_state_dict(p['shape_model_state_dict'][i])

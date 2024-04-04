@@ -82,7 +82,7 @@ class ShapeNLLLoss(nn.Module):
             ref: torch.Tensor
             ref_s: list[str]
             ref, ref_s, _, param, _ = self.model(seq, param=param, return_param=True, return_count=True, 
-                                        pseudoenergy=[self.nu*g for g in grads])
+                                        pseudoenergy=[self.nu*(g[:, 0]+ g[:, 1]-g[:, 2])for g in grads])
 
             ref_counts = []
             for k in sorted(param[0].keys()):

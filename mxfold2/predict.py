@@ -66,7 +66,7 @@ class Predict(Common):
                 else:
                     scs, preds, bps, pfs, bpps = model(seqs, return_partfunc=True, constraint=constraint, pseudoenergy=pseudoenergy)
                 elapsed_time = time.time() - start
-                for j, (header, seq, ref, sc, pred, bp, pf, bpp) in enumerate(zip(headers, seqs, vals['target'], scs, preds, bps, pfs, bpps)):
+                for batch_j, (header, seq, ref, sc, pred, bp, pf, bpp) in enumerate(zip(headers, seqs, vals['target'], scs, preds, bps, pfs, bpps)):
                     if shape_model is not None:
                         p = []
                         for i, j in enumerate(bp):
@@ -80,7 +80,7 @@ class Predict(Common):
                                 raise RuntimeError('unreachable')
                         p = torch.tensor(p, dtype=torch.float32, device=sc.device)
                         if "dataset_id" in vals:
-                            shapes = [ shape_model[vals["dataset_id"][j]].predict(seq, p) ]
+                            shapes = [ shape_model[vals["dataset_id"][batch_j]].predict(seq, p) ]
                         else:
                             shapes = [ sm.predict(seq, p) for sm in shape_model ]
                     if output_bpseq is None:
