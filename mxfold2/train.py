@@ -141,14 +141,14 @@ class Train(Common):
                         model: AbstractFold, 
                         optimizer: optim.Optimizer, 
                         scheduler,
-                        shape_model: Optional[list[nn.Module]]) -> int:
+                        shape_model: Optional[list[nn.Module]] = None) -> int:
         checkpoint = torch.load(filename)
         epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         if scheduler is not None:
             scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        if shape_model is not None:
+        if shape_model is not None and 'shape_model_state_dict' in checkpoint:
             for i, sm in enumerate(shape_model):
                 sm.load_state_dict(checkpoint['shape_model_state_dict'][i])
         return epoch
@@ -329,7 +329,7 @@ class Train(Common):
 
         checkpoint_epoch = 0
         if args.resume is not None:
-            checkpoint_epoch = self.resume_checkpoint(args.resume, model, optimizer, scheduler)
+            checkpoint_epoch = self.resume_checkpoint(args.resume, model, optimizer, scheduler, shape_model)
         
         if args.swa:
             swa_model = AveragedModel(model)
