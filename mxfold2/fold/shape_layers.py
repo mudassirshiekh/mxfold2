@@ -50,7 +50,7 @@ class Wu(nn.Module):
         self.sigma.data.clamp_(min=1e-2)
         self.alpha.data.clamp_(min=1e-2)
         self.beta.data.clamp_(min=1e-2)
-        logging.debug(f'xi={self.xi}, mu={self.mu}, sigma={self.sigma}, alpha={self.alpha}, beta={self.beta}')
+        logging.debug(f'xi={self.xi.item()}, mu={self.mu.item()}, sigma={self.sigma.item()}, alpha={self.alpha.item()}, beta={self.beta.item()}')
         nlls = []
         for i in range(len(seq)):
             valid = targets[i] > -1 # to ignore missing values (-999)

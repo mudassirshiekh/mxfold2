@@ -17,7 +17,7 @@ import torch.nn as nn
 #import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.swa_utils import SWALR, AveragedModel
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler
 from tqdm import tqdm
 
 from . import interface
@@ -43,12 +43,14 @@ class Train(Common):
     def train(self, epoch: int, model: AbstractFold, optimizer: optim.Optimizer, 
                 loss_fn: nn.Module | dict[str, nn.Module], 
                 data_loader: DataLoader[tuple[str, str, dict[str, torch.Tensor]]],
+                n_dataset: Optional[int] = None,
                 loss_weight = defaultdict(lambda: 1.),
                 clip_grad_value: float = 0.0, clip_grad_norm: float = 0.0) -> None:
         model.train()
         if not isinstance(loss_fn, dict):
             loss_fn = {'BPSEQ': loss_fn}
-        n_dataset = len(cast(FastaDataset, data_loader.dataset))
+        if n_dataset is None:
+            n_dataset = len(cast(FastaDataset, data_loader.dataset))
         loss_total, num = 0., 0
         running_loss, n_running_loss = 0, 0
         start = time.time()
@@ -267,6 +269,7 @@ class Train(Common):
             self.writer = SummaryWriter(log_dir=args.log_dir)
 
         train_dataset = BPseqDataset(args.input)
+        n_train_samples = len(train_dataset)
         n_dataset_id = 0
         if args.ribonanza is not None:
             ribonanza_dataset = RibonanzaDataset(args.ribonanza)
@@ -276,8 +279,18 @@ class Train(Common):
             shape_dataset = [ ShapeDataset(s, i+n_dataset_id) for i, s in enumerate(args.shape) ]
             n_dataset_id += len(shape_dataset)
             train_dataset = ConcatDataset([train_dataset] + shape_dataset)
+        if args.extra_dataset is not None:
+            extra_dataset = [ BPseqDataset(s) for s in args.extra_dataset ]
+            train_dataset = ConcatDataset([train_dataset] + extra_dataset)
+        n_shape_samples = len(train_dataset) - n_train_samples
+        sampler = None
+        if args.downsampling > 0.0:
+            weights = [1.0/n_train_samples] * n_train_samples + [args.downsampling/n_shape_samples] * n_shape_samples 
+            n_train_samples = int(n_train_samples*(1.0+args.downsampling)+.5)
+            sampler = WeightedRandomSampler(weights, n_train_samples, replacement=False)
+        train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=1, 
+                                  shuffle=True if sampler is None else False) # works well only for batch_size=1!!
 
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True) # works well only for batch_size=1!!
         if args.test_input is not None:
             test_dataset = BPseqDataset(args.test_input)
             test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False) # works well only for batch_size=1!!
@@ -343,7 +356,8 @@ class Train(Common):
             swa_scheduler = None
 
         for epoch in range(checkpoint_epoch+1, args.epochs+1):
-            self.train(epoch, model=model, optimizer=optimizer, loss_fn=loss_fn, data_loader=train_loader,
+            self.train(epoch, model=model, optimizer=optimizer, loss_fn=loss_fn, 
+                        data_loader=train_loader, n_dataset=n_train_samples,
                         loss_weight=loss_weight, clip_grad_value=args.clip_grad_value, clip_grad_norm=args.clip_grad_norm)
             if swa_model is not None and swa_scheduler is not None and epoch > swa_start:
                 swa_model.update_parameters(model)
@@ -388,6 +402,8 @@ class Train(Common):
                             help='specify the file name that includes SHAPE reactivity')
         subparser.add_argument('--ribonanza', type=str, 
                             help='specify the file name that includes SHAPE reactivity with Ribonanza format')
+        subparser.add_argument('--extra-dataset', type=str, action='append', 
+                            help='Extra dataset for training (BPSEQ format) with downsampling')
 
         gparser = subparser.add_argument_group("Training environment")
         subparser.add_argument('--epochs', type=int, default=10, metavar='N',
@@ -463,6 +479,7 @@ class Train(Common):
                             help='Specify a slope used with SHAPE restraints. Default is 2.6.')
         gparser.add_argument('--shape-loss-weight', type=float, default=1.,
                             help='weight for SHAPE loss function (default=1)')
+        gparser.add_argument('--downsampling', type=float, default=0., help='downsampling for SHAPE data')
         gparser.add_argument('--shape-only-training', action="store_true", help="training only shape model (available for shape_nll loss)")
 
         cls.add_network_args(subparser)
