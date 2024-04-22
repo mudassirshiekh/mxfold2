@@ -78,11 +78,12 @@ class ShapeNLLLoss(nn.Module):
         if not self.shape_only:
             nlls.backward()
             grads = [ p.grad for p in paired ]
+            logging.debug(f"grads = {grads[0][targets[0] > -1]}")
 
             ref: torch.Tensor
             ref_s: list[str]
             ref, ref_s, _, param, _ = self.model(seq, param=param, return_param=True, return_count=True, 
-                                        pseudoenergy=[self.nu*(g[:, 0]+ g[:, 1]-g[:, 2])for g in grads])
+                                        pseudoenergy=[self.nu*(g[:, 0]+ g[:, 1]-g[:, 2]) for g in grads])
 
             ref_counts = []
             for k in sorted(param[0].keys()):
@@ -119,10 +120,10 @@ class ShapeNLLLoss(nn.Module):
             logging.debug(f"Loss = {loss.item()}")
         else:
             logging.debug(f"Loss = {loss.item()} = ({pred.item()} - {ref.item()})")
-        logging.debug(seq)
-        logging.debug(pred_s)
+        logging.debug(f' seq: {seq}')
+        logging.debug(f'pred: {pred_s}')
         if not self.shape_only:
-            logging.debug(ref_s)
+            logging.debug(f' ref: {ref_s}')
         if float(loss.item())> 1e10 or torch.isnan(loss):
             logging.error(fname)
             logging.error(f"{loss.item()}, {pred.item()}, {ref.item()}")

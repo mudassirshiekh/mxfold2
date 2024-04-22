@@ -52,6 +52,8 @@ class Train(Common):
         if n_dataset is None:
             n_dataset = len(cast(FastaDataset, data_loader.dataset))
         loss_total, num = 0., 0
+        loss_type = defaultdict(lambda: 0.)
+        num_type = defaultdict(lambda: 0)
         running_loss, n_running_loss = 0, 0
         start = time.time()
         with tqdm(total=n_dataset, disable=self.disable_progress_bar) as pbar:
@@ -70,6 +72,8 @@ class Train(Common):
                     loss = loss * loss_weight[vals['type'][i]]
                     loss_total += loss.item()
                     running_loss += loss.item()
+                    loss_type[vals['type'][i]] += loss.item()
+                    num_type[vals['type'][i]] += 1
                     loss.backward()
 
                     if clip_grad_norm > 0.0:
@@ -89,7 +93,9 @@ class Train(Common):
                         self.writer.add_scalar("train/loss", running_loss, (epoch-1) * n_dataset + num)
                     running_loss, n_running_loss = 0, 0
         elapsed_time = time.time() - start
-        print('Train Epoch: {}\tLoss: {:.6f}\tTime: {:.3f}s'.format(epoch, loss_total / num, elapsed_time))
+        for tp in loss_type.keys():
+            logging.debug(f'loss[{tp}]={loss_type[tp]/num_type[tp]:.6f}={loss_type[tp]:.3f}/{num_type[tp]}')
+        print(f'Train Epoch: {epoch}\tLoss: {loss_total / num:.6f}\tTime: {elapsed_time:.3f}s')
 
 
     def test(self, epoch: int, model: AbstractFold | AveragedModel, 
@@ -172,7 +178,7 @@ class Train(Common):
         ]
         if shape_model is not None:
             for sm in shape_model:
-                optim_params.append({'params': sm.parameters(), 'lr': lr, 'weight_decay': l2_weight})
+                optim_params.append({'params': sm.parameters(), 'lr': 0.001, 'weight_decay': l2_weight})
 
         if optimizer == 'Adam':
             return optim.Adam(optim_params, amsgrad=False)

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-import logging
 import numpy as np
 import torch
 import torch.nn as nn
@@ -26,6 +25,10 @@ class GeneralizedExtremeValue(torch.autograd.Function):
         v = 1 / self.sigma * (1+x) ** (-(1+1/self.xi)) * torch.exp(- (1 + x) ** (-1/self.xi))
         return torch.log(v.clip(min=1e-5))
 
+    @property
+    def mean(self):
+        g1 = torch.exp(torch.lgamma(1. - self.xi))
+        return self.mu + self.sigma * (g1 - 1.) / self.xi
 
 class Wu(nn.Module):
     def __init__(self,  
@@ -54,18 +57,22 @@ class Wu(nn.Module):
         nlls = []
         for i in range(len(seq)):
             valid = targets[i] > -1 # to ignore missing values (-999)
-            t = targets[i][valid].clip(min=1e-2, max=3.)
+            t = targets[i][valid].clip(min=0.2, max=10.)
+            logging.debug(f'targets_valid={t}')
             p = paired[i][valid]
+            logging.debug(f'paired_valid={p}')
             p = p[:, 0] + p[:, 1]
             nll_valids = self.paired_dist.log_prob(t) * p + self.unpaired_dist.log_prob(t) * (1-p)
-            #nll = -torch.mean(nll_valids[nll_valids > 0.])
+            logging.debug(f'nll_valids={-nll_valids}')
             nll = -torch.mean(nll_valids)
+            logging.debug(f'nll_mean={nll}')
             nlls.append(nll)
         return torch.stack(nlls)
 
-    def predict(self, seq: str, paired: list[int]):
-        # TODO: not implemented yet
-        raise NotImplementedError
+    def predict(self, seq: str, paired: torch.tensor):
+        mean = torch.tensor([self.paired_dist.mean, self.paired_dist.mean, self.unpaired_dist.mean], device=paired.device)
+        val = torch.sum(mean * paired[1:], axis=1)
+        return [float(v) for v in list(val)]
 
 
 class Foo(nn.Module):
@@ -89,15 +96,19 @@ class Foo(nn.Module):
         self.p_beta.data.clamp_(min=1e-2)
         self.u_alpha.data.clamp_(min=1e-2)
         self.u_beta.data.clamp_(min=1e-2)
+        logging.debug(f'xi={self.p_alpha.item()}, mu={self.p_beta.item()}, sigma={self.u_alpha.item()}, alpha={self.u_alpha.item()}')
         nlls = []
         for i in range(len(seq)):
             valid = targets[i] > -1 # to ignore missing values (-999)
-            t = targets[i][valid].clip(min=1e-2, max=3.)
+            t = targets[i][valid].clip(min=0.2, max=10.)
+            logging.debug(f'targets_valid={t}')
             p = paired[i][valid]
+            logging.debug(f'paired_valid={p}')
             p = p[:, 0] + p[:, 1]
             nll_valids = self.paired_dist.log_prob(t) * p + self.unpaired_dist.log_prob(t) * (1-p)
-            #nll = -torch.mean(nll_valids[nll_valids < 0.])
+            logging.debug(f'nll_valids={-nll_valids}')
             nll = -torch.mean(nll_valids)
+            logging.debug(f'nll_mean={nll}')
             nlls.append(nll)
         return torch.stack(nlls)
 
@@ -161,9 +172,8 @@ class ShapeCNN(nn.Module):
             x = self.calc_param(seq[i], paired[i])
             valid = targets[i] > -1 # to ignore missing values (-999)
             x = x[valid]
-            t = targets[i][valid].clip(min=1e-2, max=3.)
+            t = targets[i][valid].clip(min=0.2, max=10.)
             nll_valids = self.log_prob(t, x[:, 0], x[:, 1])
-            #nll = -torch.mean(nll_valids[nll_valids < 0.])
             nll = -torch.mean(nll_valids)
             nlls.append(nll)
         return torch.stack(nlls)
