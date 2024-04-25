@@ -106,7 +106,10 @@ class Predict(Common):
                         if shape_model is not None and len(ref)>0:
                             s = torch.tensor(shapes[0])
                             s = s.clip(min=0.0, max=1.0)
-                            d = torch.abs(ref[1:][ref[1:]>=0]-s[ref[1:]>=0])
+                            ref = ref[1:]
+                            valid = ref>=-1
+                            ref = ref.clip(min=0.0, max=1.0)
+                            d = torch.abs(ref[valid]-s[valid])
                             d2 = d**2
                             x = [header, len(seq), elapsed_time, sc.item(), 
                                 len(d), float(torch.sum(d)/len(d)), float(torch.sum(d2)/len(d))]
