@@ -222,13 +222,15 @@ class Train(Common):
 
 
     def build_shape_loss_function(self, loss_func: str, model: AbstractFold, args: Namespace,
-                                shape_model: Optional[nn.Module] = None) -> nn.Module:
+                                shape_model: Optional[nn.Module] = None,
+                                lwf_model: Optional[AbstractFold] = None) -> nn.Module:
         if loss_func == 'shape_nll':
             from .loss.shape_nll_loss import ShapeNLLLoss
             return ShapeNLLLoss(model=model,
                             shape_model=shape_model,
                             perturb=args.shape_perturb, nu=args.shape_nu, 
                             l1_weight=args.l1_weight, l2_weight=args.l2_weight,
+                            lwf_model=lwf_model, lwf_weight=args.lwf_weight,
                             sl_weight=0., shape_only=args.shape_only_training)
 
         elif loss_func == 'shape_fy':
@@ -328,11 +330,19 @@ class Train(Common):
                 p = p['model_state_dict']
             model.load_state_dict(p)
 
+        lwf_model = None
+        if args.lwf_weight > 0.0:
+            lwf_model, _ = self.build_model(args)
+            lwf_model.load_state_dict(model.state_dict())
+            lwf_model.eval()
+
         if args.gpu >= 0:
             model.to(torch.device("cuda", args.gpu))
             if shape_model is not None:
                 for sm in shape_model:
                     sm.to(torch.device("cuda", args.gpu))
+            if lwf_model is not None:
+                lwf_model.to(torch.device("cuda", args.gpu))
 
         torch.set_num_threads(args.threads)
         interface.set_num_threads(args.threads)
@@ -341,7 +351,7 @@ class Train(Common):
 
         loss_fn = {
             'BPSEQ': self.build_loss_function(args.loss_func, model, args), 
-            'SHAPE': self.build_shape_loss_function(args.shape_loss_func, model, args, shape_model=shape_model) 
+            'SHAPE': self.build_shape_loss_function(args.shape_loss_func, model, args, shape_model=shape_model, lwf_model=lwf_model) 
         }
         loss_weight = { 'BPSEQ': 1.0, 'SHAPE': args.shape_loss_weight }
         scheduler = self.build_scheduler(args.scheduler, optimizer, args)
@@ -461,6 +471,8 @@ class Train(Common):
                             help='the weight for L2 regularization (default: 0)')
         gparser.add_argument('--score-loss-weight', type=float, default=0.,
                             help='the weight for score loss for {hinge,fy} loss (default: 0)')
+        gparser.add_argument('--lwf-weight', type=float, default=0.,
+                            help='the weight for learn without forgetting (LwF) in the incremental training (default: 0)')
         gparser.add_argument('--perturb', type=float, default=0.1,
                             help='standard deviation of perturbation for fy loss (default: 0.1)')
         gparser.add_argument('--nu', type=float, default=0.1,

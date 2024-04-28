@@ -16,7 +16,8 @@ class ShapeNLLLoss(nn.Module):
     def __init__(self, model: AbstractFold, 
             shape_model: list[nn.Module],
             perturb: float = 0., nu: float = 0.1, l1_weight: float = 0., l2_weight: float = 0.,
-            sl_weight: float = 0., shape_only: bool = False) -> None:
+            sl_weight: float = 0., shape_only: bool = False,
+            lwf_model: Optional[AbstractFold] = None, lwf_weight = 0.) -> None:
         super(ShapeNLLLoss, self).__init__()
         self.model = model
         self.shape_model = shape_model
@@ -26,6 +27,8 @@ class ShapeNLLLoss(nn.Module):
         self.l2_weight = l2_weight
         self.sl_weight = sl_weight
         self.shape_only = shape_only
+        self.lwf_model = lwf_model
+        self.lwf_weight = lwf_weight
         if sl_weight > 0.0:
             from .. import param_turner2004
             from ..fold.rnafold import RNAFold
@@ -38,12 +41,13 @@ class ShapeNLLLoss(nn.Module):
         pred: torch.Tensor
         pred_s: list[str]
         pred_bps: list[list[int]]
+
         if self.shape_only:
             with torch.no_grad():
                 pred, pred_s, pred_bps = self.model(seq, perturb=self.perturb)
 
         else:
-            pred, pred_s, pred_bps, param, _ = self.model(seq, return_param=True, return_count=True, perturb=self.perturb)
+            pred, pred_s, pred_bps, param, param_without_perturb = self.model(seq, return_param=True, return_count=True, perturb=self.perturb)
 
             pred_params, pred_counts = [], []
             for k in sorted(param[0].keys()):
@@ -58,6 +62,8 @@ class ShapeNLLLoss(nn.Module):
                         elif kk.startswith('count_'):
                             pred_counts.append(torch.vstack([param[i][k][kk] for i in range(len(seq))]))
 
+
+        # predict shape reactivity
         paired = []
         for pred_bp in pred_bps:
             p = []
@@ -75,7 +81,11 @@ class ShapeNLLLoss(nn.Module):
         targets = [ t.to(pred.device) for t in targets ]
         nlls = self.shape_model[dataset_id](seq, paired, targets)
 
-        if not self.shape_only:
+        if self.shape_only:
+            loss = nlls
+
+        else:
+            # optimize both shape and folding models
             nlls.backward()
             grads = [ p.grad for p in paired ]
             logging.debug(f"grads = {grads[0][targets[0] > -1]}")
@@ -94,6 +104,7 @@ class ShapeNLLLoss(nn.Module):
                         if kk.startswith('count_'):
                             ref_counts.append(torch.vstack([param[i][k][kk] for i in range(len(seq))]))
 
+            # prepare backpropagation with respect to SHAPE reactivity using implicit MLE
             class ADwrapper(torch.autograd.Function):
                 @staticmethod
                 def forward(ctx, *input):
@@ -105,16 +116,19 @@ class ShapeNLLLoss(nn.Module):
 
             loss = ADwrapper.apply(*pred_params)
 
-        else:
-            loss = nlls
+            seq_l = torch.tensor([len(s) for s in seq], device=pred.device)
+            if self.lwf_model is not None and self.lwf_weight > 0.0:
+                # FY loss for learning without forgetting (LwF)
+                with torch.no_grad():
+                    _, _, lwf_pairs = self.lwf_model(seq)
+                lwf_ref, _, _ = self.model(seq, param=param_without_perturb, constraint=lwf_pairs, max_internal_length=None)
+                loss += self.lwf_weight * (pred - lwf_ref) / seq_l
 
-        if self.sl_weight > 0.0:
-            l = torch.tensor([len(s) for s in seq], device=pred.device)
-            with torch.no_grad():
-                ref2: torch.Tensor
-                ref2_s: list[str]
-                ref2, ref2_s, _ = self.turner(seq)
-            loss += self.sl_weight * (ref-ref2)**2 / l
+            if self.sl_weight > 0.0:
+                with torch.no_grad():
+                    ref2: torch.Tensor
+                    ref2, _, _ = self.turner(seq)
+                loss += self.sl_weight * (ref-ref2)**2 / seq_l
 
         if self.shape_only:
             logging.debug(f"Loss = {loss.item()}")
