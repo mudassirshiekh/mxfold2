@@ -85,6 +85,16 @@ class ShapeNLLLoss(nn.Module):
             loss = nlls
 
         else:
+            loss = 0.
+            # NOTICE: The LwF needs to be calculated before the backpropagation in the SHAPE model, due to possible memory leaks related to the returned parameters.
+            seq_l = torch.tensor([len(s) for s in seq], device=pred.device)
+            if self.lwf_model is not None and self.lwf_weight > 0.0:
+                # FY loss for learning without forgetting (LwF)
+                with torch.no_grad():
+                    _, _, lwf_pairs = self.lwf_model(seq)
+                lwf_ref, _, _ = self.model(seq, param=param_without_perturb, constraint=lwf_pairs, max_internal_length=None)
+                loss += self.lwf_weight * (pred - lwf_ref) / seq_l
+
             # optimize both shape and folding models
             nlls.backward()
             grads = [ p.grad for p in paired ]
@@ -114,15 +124,7 @@ class ShapeNLLLoss(nn.Module):
                 def backward(ctx, grad_output):
                     return tuple( grad_output * (p-r) for p, r in zip(pred_counts, ref_counts) )
 
-            loss = ADwrapper.apply(*pred_params)
-
-            seq_l = torch.tensor([len(s) for s in seq], device=pred.device)
-            if self.lwf_model is not None and self.lwf_weight > 0.0:
-                # FY loss for learning without forgetting (LwF)
-                with torch.no_grad():
-                    _, _, lwf_pairs = self.lwf_model(seq)
-                lwf_ref, _, _ = self.model(seq, param=param_without_perturb, constraint=lwf_pairs, max_internal_length=None)
-                loss += self.lwf_weight * (pred - lwf_ref) / seq_l
+            loss += ADwrapper.apply(*pred_params)
 
             if self.sl_weight > 0.0:
                 with torch.no_grad():
