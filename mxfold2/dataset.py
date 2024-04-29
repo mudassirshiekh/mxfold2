@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from itertools import groupby
 from typing import Generator, Any
+import json
 
 import torch
 from torch.utils.data import Dataset
@@ -129,3 +130,25 @@ class RibonanzaDataset(Dataset[tuple[str, str, dict[str, torch.Tensor]]]):
         react[1:] = torch.Tensor(df_react.values.astype(float))
         return (f"{self.csv_file}:{seq_id}", seq, 
                 {'type': 'SHAPE', 'target': react, 'dataset_id': self.dataset_id[df_i['experiment_type']]})
+
+
+class JsonDataset(Dataset[tuple[str, str, dict[str, torch.Tensor]]]):
+    def __init__(self, files: list[str]) -> None:
+        super(Dataset, self).__init__()
+        self.data = []
+        for file in files:
+            with open(file) as f:
+                data = json.load(f)
+                for k, v in data.items(): 
+                    seq = v['sequence']
+                    stru = [0] * (len(seq)+1)
+                    for i, j in v['structure']:
+                        stru[i+1] = j+1
+                        stru[j+1] = i+1
+                    self.data.append((k, v['sequence'], {'type': 'BPSEQ', 'target': torch.tensor(stru)}))
+        
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index) -> tuple[str, str, dict[str, torch.Tensor]]:
+        return self.data[index]

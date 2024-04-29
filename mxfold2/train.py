@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler
 from tqdm import tqdm
 
 from . import interface
-from .dataset import BPseqDataset, FastaDataset, ShapeDataset, RibonanzaDataset
+from .dataset import BPseqDataset, FastaDataset, ShapeDataset, RibonanzaDataset, JsonDataset
 from .fold.fold import AbstractFold
 from .common import Common
 
@@ -279,6 +279,10 @@ class Train(Common):
         train_dataset = BPseqDataset(args.input)
         n_train_samples = len(train_dataset)
         n_dataset_id = 0
+        if args.json_dataset is not None:
+            json_dataset = JsonDataset(args.json_dataset)
+            train_dataset = ConcatDataset([train_dataset, json_dataset])
+            n_train_samples = len(train_dataset)
         if args.ribonanza is not None:
             ribonanza_dataset = RibonanzaDataset(args.ribonanza)
             n_dataset_id = len(ribonanza_dataset.dataset_id)
@@ -420,6 +424,8 @@ class Train(Common):
                             help='specify the file name that includes SHAPE reactivity with Ribonanza format')
         subparser.add_argument('--extra-dataset', type=str, action='append', 
                             help='Extra dataset for training (BPSEQ format) with downsampling')
+        subparser.add_argument('--json-dataset', type=str, action='append', 
+                            help='Extra dataset for training (JSON format)')
 
         gparser = subparser.add_argument_group("Training environment")
         subparser.add_argument('--epochs', type=int, default=10, metavar='N',
