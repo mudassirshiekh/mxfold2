@@ -98,7 +98,8 @@ class ShapeNLLLoss(nn.Module):
             # optimize both shape and folding models
             nlls.backward()
             grads = [ p.grad for p in paired ]
-            logging.debug(f"grads = {grads[0][targets[0] > -1]}")
+            #logging.debug(f"grads = {grads[0][targets[0] > -1]}")
+            logging.debug(f"pseduenergy = {self.nu*(grads[0][:, 0]+ grads[0][:, 1]-grads[0][:, 2])}")
 
             ref: torch.Tensor
             ref_s: list[str]

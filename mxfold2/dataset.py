@@ -152,3 +152,28 @@ class JsonDataset(Dataset[tuple[str, str, dict[str, torch.Tensor]]]):
 
     def __getitem__(self, index) -> tuple[str, str, dict[str, torch.Tensor]]:
         return self.data[index]
+
+
+class JsonShapeDataset(Dataset[tuple[str, str, dict[str, torch.Tensor]]]):
+    def __init__(self, files: list[str]) -> None:
+        super(Dataset, self).__init__()
+        self.data = []
+        ex_types = set()
+        for file in files:
+            with open(file) as f:
+                data = json.load(f)
+                for k, v in data.items(): 
+                    for ex in ['dms', 'shape']:
+                        if ex in v:
+                            ex_types.add(ex)
+                            react = torch.tensor([-999.] + v[ex])
+                            react[torch.logical_and(react < 0., react > -100.)] = 0.
+                            self.data.append((k, v['sequence'], {'type': 'SHAPE', 'target': react, 'dataset_id': ex}))
+        self.dataset_id = { et: i for i, et in enumerate(ex_types) }
+        
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index) -> tuple[str, str, dict[str, torch.Tensor]]:
+        d = self.data[index]
+        return (d[0], d[1], {'type': 'SHAPE', 'target': d[2]['target'], 'dataset_id': self.dataset_id[d[2]['dataset_id']]})

@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler
 from tqdm import tqdm
 
 from . import interface
-from .dataset import BPseqDataset, FastaDataset, ShapeDataset, RibonanzaDataset, JsonDataset
+from .dataset import BPseqDataset, FastaDataset, ShapeDataset, RibonanzaDataset, JsonDataset, JsonShapeDataset
 from .fold.fold import AbstractFold
 from .common import Common
 
@@ -291,6 +291,10 @@ class Train(Common):
             shape_dataset = [ ShapeDataset(s, i+n_dataset_id) for i, s in enumerate(args.shape) ]
             n_dataset_id += len(shape_dataset)
             train_dataset = ConcatDataset([train_dataset] + shape_dataset)
+        if args.json_shape_dataset is not None:
+            json_shape_dataset = JsonShapeDataset(args.json_shape_dataset)
+            n_dataset_id = len(json_shape_dataset.dataset_id)
+            train_dataset = ConcatDataset([train_dataset, json_shape_dataset])
         if args.extra_dataset is not None:
             extra_dataset = [ BPseqDataset(s) for s in args.extra_dataset ]
             train_dataset = ConcatDataset([train_dataset] + extra_dataset)
@@ -319,7 +323,7 @@ class Train(Common):
         config.update({ 'model': args.model, 'param': args.param, 'fold': args.fold })
 
         shape_model = None 
-        if args.shape is not None or args.ribonanza is not None:
+        if args.shape is not None or args.ribonanza is not None or args.json_shape_dataset is not None:
             shape_model = [ self.build_shape_model(args) for _ in range(n_dataset_id) ]
         
         if args.init_param != '':
@@ -426,6 +430,8 @@ class Train(Common):
                             help='Extra dataset for training (BPSEQ format) with downsampling')
         subparser.add_argument('--json-dataset', type=str, action='append', 
                             help='Extra dataset for training (JSON format)')
+        subparser.add_argument('--json-shape-dataset', type=str, action='append', 
+                            help='SHAPE dataset for training (JSON format)')
 
         gparser = subparser.add_argument_group("Training environment")
         subparser.add_argument('--epochs', type=int, default=10, metavar='N',

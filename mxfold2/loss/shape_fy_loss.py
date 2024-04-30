@@ -41,6 +41,7 @@ class ShapeFenchelYoungLoss(nn.Module):
 
         #ref_model = self.model.duplicate()
         pseudoenergy = [ self.calc_pseudoenergy(r) for r in targets ]
+        logging.debug(f"pseudoenergy = {pseudoenergy}")
         with torch.no_grad():
             _, _, ref_stru = self.model(seq, param=param_without_perturb, pseudoenergy=pseudoenergy)
         ref: torch.Tensor
@@ -53,10 +54,10 @@ class ShapeFenchelYoungLoss(nn.Module):
                 ref2: torch.Tensor
                 ref2, _, _ = self.turner(seq, pseudoenergy=pseudoenergy, constraint=ref_stru)
             loss += self.sl_weight * (ref-ref2)**2 / l
-        logging.debug(f"Loss = {loss.item()} = ({pred.item()/l} - {ref.item()/l})")
-        logging.debug(seq)
-        logging.debug(pred_s)
-        logging.debug(ref_s)
+        logging.debug(f"Loss = {loss.item()} = ({pred.item()} - {ref.item()})")
+        logging.debug(f' seq: {seq}')
+        logging.debug(f'pred: {pred_s}')
+        logging.debug(f' ref: {ref_s}')
         if float(loss.item())> 1e10 or torch.isnan(loss):
             logging.error(fname)
             logging.error(f"{loss.item()}, {pred.item()}, {ref.item()}")
