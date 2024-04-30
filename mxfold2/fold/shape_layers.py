@@ -64,7 +64,7 @@ class Wu(nn.Module):
             p = p[:, 0] + p[:, 1]
             nll_valids = self.paired_dist.log_prob(t) * p + self.unpaired_dist.log_prob(t) * (1-p)
             logging.debug(f'nll_valids={-nll_valids}')
-            nll = -torch.mean(nll_valids)
+            nll = -torch.sum(nll_valids)
             logging.debug(f'nll_mean={nll}')
             nlls.append(nll)
         return torch.stack(nlls)
@@ -107,8 +107,8 @@ class Foo(nn.Module):
             p = p[:, 0] + p[:, 1]
             nll_valids = self.paired_dist.log_prob(t) * p + self.unpaired_dist.log_prob(t) * (1-p)
             logging.debug(f'nll_valids={-nll_valids}')
-            nll = -torch.mean(nll_valids)
-            logging.debug(f'nll_mean={nll}')
+            nll = -torch.sum(nll_valids)
+            logging.debug(f'nll_sum={nll}')
             nlls.append(nll)
         return torch.stack(nlls)
 
@@ -174,7 +174,7 @@ class ShapeCNN(nn.Module):
             x = x[valid]
             t = targets[i][valid].clip(min=0.2, max=10.)
             nll_valids = self.log_prob(t, x[:, 0], x[:, 1])
-            nll = -torch.mean(nll_valids)
+            nll = -torch.sum(nll_valids)
             nlls.append(nll)
         return torch.stack(nlls)
 

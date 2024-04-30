@@ -82,7 +82,8 @@ class ShapeNLLLoss(nn.Module):
         nlls = self.shape_model[dataset_id](seq, paired, targets)
 
         if self.shape_only:
-            loss = nlls
+            seq_l = torch.tensor([len(s) for s in seq], device=pred.device)
+            loss = nlls / seq_l
 
         else:
             loss = 0.
@@ -98,13 +99,13 @@ class ShapeNLLLoss(nn.Module):
             # optimize both shape and folding models
             nlls.backward()
             grads = [ p.grad for p in paired ]
+            pseudoenergy = [ self.nu*(g[:, 0]+ g[:, 1]-g[:, 2]) for g in grads ]
             #logging.debug(f"grads = {grads[0][targets[0] > -1]}")
-            logging.debug(f"pseduenergy = {self.nu*(grads[0][:, 0]+ grads[0][:, 1]-grads[0][:, 2])}")
+            logging.debug(f"pseduenergy = {pseudoenergy}")
 
             ref: torch.Tensor
             ref_s: list[str]
-            ref, ref_s, _, param, _ = self.model(seq, param=param, return_param=True, return_count=True, 
-                                        pseudoenergy=[self.nu*(g[:, 0]+ g[:, 1]-g[:, 2]) for g in grads])
+            ref, ref_s, _, param, _ = self.model(seq, param=param, return_param=True, return_count=True, pseudoenergy=pseudoenergy)
 
             ref_counts = []
             for k in sorted(param[0].keys()):
@@ -125,7 +126,7 @@ class ShapeNLLLoss(nn.Module):
                 def backward(ctx, grad_output):
                     return tuple( grad_output * (p-r) for p, r in zip(pred_counts, ref_counts) )
 
-            loss += ADwrapper.apply(*pred_params)
+            loss += ADwrapper.apply(*pred_params) / seq_l
 
             if self.sl_weight > 0.0:
                 with torch.no_grad():
