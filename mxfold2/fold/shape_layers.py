@@ -96,7 +96,7 @@ class Foo(nn.Module):
         self.p_beta.data.clamp_(min=1e-2)
         self.u_alpha.data.clamp_(min=1e-2)
         self.u_beta.data.clamp_(min=1e-2)
-        logging.debug(f'xi={self.p_alpha.item()}, mu={self.p_beta.item()}, sigma={self.u_alpha.item()}, alpha={self.u_alpha.item()}')
+        logging.debug(f'p_alpha={self.p_alpha.item()}, p_beta={self.p_beta.item()}, u_alpha={self.u_alpha.item()}, u_beta={self.u_beta.item()}')
         nlls = []
         for i in range(len(seq)):
             valid = targets[i] > -1 # to ignore missing values (-999)

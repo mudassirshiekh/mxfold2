@@ -6,7 +6,7 @@ from .predict import Predict
 from .train import Train
 #from .show_param import ShowParam
 
-default_conf = os.path.join(os.path.dirname(__file__), 'models', 'TrainSetAB.conf')
+default_conf = os.path.join(os.path.dirname(__file__), 'models', 'all_cdhit.conf')
 
 def main():
     parser = ArgumentParser(
