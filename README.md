@@ -1,4 +1,5 @@
 # MXfold2
+#By Mudassir Alam
 RNA secondary structure prediction using deep learning with thermodynamic integration
 
 ## Installation
